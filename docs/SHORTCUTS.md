@@ -8,6 +8,9 @@
 | Place an asset | drag it from the tray onto the canvas |
 | Place an asset in the middle | click it in the tray (a double click places one, not two) |
 | Select | click the item |
+| Select several | <kbd>Shift</kbd>-click each object, or drag a box on empty canvas |
+| Move a group | drag any selected object; the group keeps its arrangement |
+| Remove one from the selection | <kbd>⌘</kbd>/<kbd>Ctrl</kbd>-click it |
 | Move | drag the item |
 | Resize | drag the corner handle, bottom right |
 | Free resize | turn **Aspect** off first |
@@ -45,5 +48,6 @@ These are the decisions that are not obvious, written down once:
 - **Snapping** targets the grid, the canvas edges and centre, and the edges and centres of everything else on the board. A guide line appears when something snaps, and disappears when you let go. The grid step is in the inspector.
 - **Rotation** is about the item's centre and is in degrees, clockwise. The X/Y/W/H in the inspector are the unrotated box.
 - **Undo** keeps fifty steps. A drag is one step, not four hundred. Holding an arrow key is one step.
-- **Locked** items can still be selected and inspected, but not moved, resized or rotated.
+- **Locked** items can still be selected and inspected, but not moved, resized or rotated. In a group, a locked object keeps its place while the rest move.
+- **A group is not a container.** Selecting several objects lets them move and nudge as one rigid unit; there is no group object in the file, and resizing and rotating stay one object at a time.
 - **New** clears the board. The imported images stay in the tray, and the saved copy in the browser is cleared too.

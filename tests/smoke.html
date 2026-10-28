@@ -142,7 +142,7 @@ frame.addEventListener("load", async function () {
         }));
       };
       fire("pointerdown", 0, 0);
-      pressed.selected = state.selection ? state.selection.id : null;
+      pressed.selected = state.selection.length ? state.selection[0] : null;
       fire("pointermove", 30, 20);
       fire("pointerup", 30, 20);
       pressed.moved = Math.abs(item.x - 10) > 1 || Math.abs(item.y - 10) > 1;

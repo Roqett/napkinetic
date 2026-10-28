@@ -271,7 +271,9 @@ How each Definition-of-Done box is proven, rather than asserted:
 
 ## 9. Deliberately not in this build
 
-Stretch list from handover §4, untouched: layers panel, multi-select / align / distribute / group, shape magnets, note pins with leader lines, SVG export, PWA install, Tauri wrapper, asset replacement by filename, multiple boards, MCP server.
+Stretch list from handover §4, still out: layers panel, align / distribute / group containers, shape magnets, note pins with leader lines, SVG export, PWA install, Tauri wrapper, asset replacement by filename, multiple boards, MCP server.
+
+One stretch item moved into the build after the fourteen phases: selecting several objects and moving them as a group. It is a selection behaviour, not a group object in the file, so the format is unchanged.
 
 Two additions I would also leave out: a `.zip` handoff bundle (four separate downloads is fine and needs no dependency), and inline `contenteditable` text editing (inspector-only is enough for labels and headings).
 
@@ -379,6 +381,19 @@ are recorded in the note itself.
 The acceptance cases from the note run as `tests/spacing.html`: thirteen
 checks, all passing in Chrome 152 and Firefox 156.
 
+### Group move
+
+The owner asked for this after the phases were done: select several objects
+with <kbd>Shift</kbd>-click or a marquee, then drag or nudge them as one rigid
+unit. The selection became a list of ids, so one object is the ordinary case
+and several are a group.
+
+There is no group object in `layout.json`. A group moves in world space, snaps
+by its combined bounding box rather than by one member, and leaves a locked
+member where it is. Resize and rotate stay one object at a time, because the
+format has no group transform to write. `tests/group.html` covers the
+acceptance cases; the smoke test still covers the single-selection path.
+
 ### What is verified, and how
 
 | Claim | Evidence |
@@ -389,6 +404,7 @@ checks, all passing in Chrome 152 and Firefox 156.
 | the export size is right | the GT40 panel at 214 × 719 pt, scale 2: tier 1 = 428 × 1438, tier 2 = 856 × 2876, tier 3 = 1284 × 4314 |
 | the JSON round-trips | the document is compared before and after a load: identical |
 | missing assets are reported, not dropped | a project with an unknown asset opens with the item kept, a placeholder shown and a relink dialog listing it |
+| a group moves as one thing | `tests/group.html`: thirteen checks, one undo, locked members stay put |
 | the app works in more than one browser | the same suite passes in Chrome 152 and Firefox 156 (`tests/`) |
 | the app is accessible | Lighthouse: accessibility 1.0, best practices 1.0, SEO 1.0 |
 

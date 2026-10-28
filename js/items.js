@@ -27,12 +27,17 @@
 
   const els = new Map();
 
+  /* A pointer press focuses the magnet as the browser's default action. The
+     focus handler below must not read that as a keyboard arrival, or a
+     Command-click that removes an item from a group would put it back. */
+  let pointerPressedAt = -Infinity;
+
   function ppu() {
     return MN.stage.pxPerUnit();
   }
 
   function isSelected(id) {
-    return !!(state.selection && state.selection.id === id);
+    return state.selection.indexOf(id) >= 0;
   }
 
   /* The plain name, for the inspector and the notes brief. */
@@ -126,9 +131,14 @@
     el.appendChild(core.el("div", { class: "tag", "aria-hidden": "true" }));
 
     /* Focusing an object selects it, so the arrow keys nudge whatever the
-       keyboard has landed on. */
+       keyboard has landed on. A focus that came from a pointer press is not
+       a selection command: the press has already decided the selection. */
+    el.addEventListener("pointerdown", function () {
+      pointerPressedAt = performance.now();
+    });
     el.addEventListener("focus", function () {
-      S.select(isNote ? "note" : "item", item.id);
+      if (performance.now() - pointerPressedAt < 300) return;
+      if (!S.isSelected(item.id)) S.select(isNote ? "note" : "item", item.id);
     });
     return el;
   }
@@ -286,6 +296,9 @@
   }
 
   function renderItems() {
+    const multi = state.selection.length > 1;
+    itemsLayer.classList.toggle("multi", multi);
+    if (notesLayer) notesLayer.classList.toggle("multi", multi);
     renderLayer(state.items, itemsLayer, false);
     renderLayer(state.notes, notesLayer, true);
   }

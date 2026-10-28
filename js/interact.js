@@ -112,20 +112,51 @@
     return S.findItem(obj.id) ? "item" : "note";
   }
 
+  /* The box around a set of objects. A group is moved by this box, so the
+     guides show where the group lands, not where one of its pieces lands. */
+  function groupBox(objects) {
+    if (!objects.length) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const obj of objects) {
+      minX = Math.min(minX, obj.x);
+      minY = Math.min(minY, obj.y);
+      maxX = Math.max(maxX, obj.x + obj.w);
+      maxY = Math.max(maxY, obj.y + obj.h);
+    }
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+
   function startDrag(e, item, mode) {
     e.preventDefault();
     e.stopPropagation();
-    S.select(objectType(item), item.id);
     if (item.locked) {
+      S.select(objectType(item), item.id);
       MN.app.setStatus("Locked — unlock it in the inspector to move it.");
       return;
     }
 
+    /* The group is whatever is selected, as long as the thing being dragged
+       is part of it. Otherwise the drag is just that one thing. */
+    let group = S.selectedObjects();
+    if (!group.some(function (obj) { return obj.id === item.id; })) {
+      S.select(objectType(item), item.id);
+      group = [item];
+    }
+    /* Resizing and rotating are one object at a time. A locked object stays
+       put, even when it is part of the selection. */
+    if (mode !== "move") group = [item];
+    else group = group.filter(function (obj) { return !obj.locked; });
+
     const p = MN.stage.toCanvas(e.clientX, e.clientY);
+    const box = groupBox(group);
+
     drag = {
       id: item.id,
       mode: mode,
       p0: p,
+      group: group.map(function (obj) { return { obj: obj, x0: obj.x, y0: obj.y }; }),
+      box0: box,
+      ids: group.map(function (obj) { return obj.id; }),
       x0: item.x, y0: item.y, w0: item.w, h0: item.h,
       rot0: item.rotation || 0,
       ratio: MN.items.ratioOf(item),
@@ -148,21 +179,36 @@
     if (!item) return;
 
     const p = MN.stage.toCanvas(e.clientX, e.clientY);
-
-    /* Work in the item's own frame, so a rotated item follows the cursor
-       instead of sliding sideways. */
-    const rad = -(drag.rot0 || 0) * Math.PI / 180;
     const dx = p.x - drag.p0.x;
     const dy = p.y - drag.p0.y;
-    const lx = dx * Math.cos(rad) - dy * Math.sin(rad);
-    const ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+
+    /* A single rotated item follows the cursor in its own frame, so it does
+       not slide sideways. A group moves in world space: the pieces keep the
+       arrangement they had. */
+    let lx = dx;
+    let ly = dy;
+    if (drag.group.length < 2) {
+      const rad = -(drag.rot0 || 0) * Math.PI / 180;
+      lx = dx * Math.cos(rad) - dy * Math.sin(rad);
+      ly = dx * Math.sin(rad) + dy * Math.cos(rad);
+    }
 
     if (drag.mode === "move") {
-      const snapped = e.altKey ? { x: drag.x0 + lx, y: drag.y0 + ly, guides: [] } : MN.snap.snapMove(item, drag.x0 + lx, drag.y0 + ly);
-      item.x = snapped.x;
-      item.y = snapped.y;
+      const targetX = drag.box0.x + lx;
+      const targetY = drag.box0.y + ly;
+      const snapped = e.altKey
+        ? { x: targetX, y: targetY, guides: [] }
+        : MN.snap.snapMove(drag.box0, targetX, targetY, drag.ids);
+      const moveX = snapped.x - drag.box0.x;
+      const moveY = snapped.y - drag.box0.y;
+      for (const member of drag.group) {
+        member.obj.x = member.x0 + moveX;
+        member.obj.y = member.y0 + moveY;
+        MN.items.updateItem(member.obj);
+      }
       drag.guides = snapped.guides;
-    } else if (drag.mode === "resize") {      if (item.kind !== "image" && item.autoHeight) {
+    } else if (drag.mode === "resize") {
+      if (item.kind !== "image" && item.autoHeight) {
         /* A text box resizes by its wrap width; the height follows the text. */
         item.w = Math.max(MIN_SIZE, drag.w0 + lx);
         MN.items.syncTextHeight(item);
@@ -215,10 +261,9 @@
     const tag = (e.target && e.target.tagName || "").toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select") return;
 
-    if (!state.selection) return;
-    const obj = findObject(state.selection.id);
-    if (!obj) return;
-    const isNote = S.findNote(obj.id) !== null;
+    if (!state.selection.length) return;
+    const objects = S.selectedObjects();
+    if (!objects.length) return;
 
     if (e.key === "Escape") {
       S.deselect();
@@ -226,39 +271,130 @@
     }
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
-      if (isNote) S.removeNote(obj.id); else S.removeItem(obj.id);
+      for (const obj of objects.slice()) {
+        if (S.findNote(obj.id)) S.removeNote(obj.id); else S.removeItem(obj.id);
+      }
       S.commit("delete");
       return;
     }
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "d") {
       e.preventDefault();
-      const result = S.duplicateObject(obj.id);
-      if (result) {
-        S.commit("duplicate");
-        S.select(result.type, result.copy.id);
+      for (const obj of objects.slice()) {
+        const result = S.duplicateObject(obj.id);
+        if (result) {
+          S.commit("duplicate");
+          S.select(result.type, result.copy.id);
+        }
       }
       return;
     }
     /* Any other shortcut belongs to the browser. */
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (obj.locked) return;
 
     const step = e.shiftKey ? 10 : 1;
+    const movable = objects.filter(function (obj) { return !obj.locked; });
     let handled = true;
-    if (e.key === "ArrowLeft") obj.x -= step;
-    else if (e.key === "ArrowRight") obj.x += step;
-    else if (e.key === "ArrowUp") obj.y -= step;
-    else if (e.key === "ArrowDown") obj.y += step;
+    if (e.key === "ArrowLeft") { for (const obj of movable) obj.x -= step; }
+    else if (e.key === "ArrowRight") { for (const obj of movable) obj.x += step; }
+    else if (e.key === "ArrowUp") { for (const obj of movable) obj.y -= step; }
+    else if (e.key === "ArrowDown") { for (const obj of movable) obj.y += step; }
     else handled = false;
 
     if (handled) {
       e.preventDefault();
-      clampItem(obj);
-      MN.items.updateItem(obj);
+      /* Every selected object is locked: the arrow key must not scroll the
+         page, and it must not move anything. */
+      if (!movable.length) return;
+      for (const obj of movable) {
+        clampItem(obj);
+        MN.items.updateItem(obj);
+      }
       MN.inspector.updateValues();
       /* Nudges coalesce: holding the arrow key is one undo step. */
       S.commit("nudge", { coalesce: "nudge" });
     }
+  }
+
+  /* ---------- the marquee ---------- */
+
+  let marquee = null;
+
+  function startMarquee(e) {
+    const p = MN.stage.toCanvas(e.clientX, e.clientY);
+    marquee = {
+      x0: p.x, y0: p.y, x1: p.x, y1: p.y,
+      additive: e.shiftKey || e.metaKey || e.ctrlKey,
+      moved: false,
+    };
+    window.addEventListener("pointermove", onMarqueeMove);
+    window.addEventListener("pointerup", onMarqueeUp, { once: true });
+    window.addEventListener("pointercancel", onMarqueeUp, { once: true });
+  }
+
+  function onMarqueeMove(e) {
+    if (!marquee) return;
+    const p = MN.stage.toCanvas(e.clientX, e.clientY);
+    marquee.x1 = p.x;
+    marquee.y1 = p.y;
+    if (Math.abs(marquee.x1 - marquee.x0) > 1 || Math.abs(marquee.y1 - marquee.y0) > 1) marquee.moved = true;
+    drawMarquee();
+  }
+
+  function onMarqueeUp() {
+    if (!marquee) return;
+    const box = marquee;
+    marquee = null;
+    window.removeEventListener("pointermove", onMarqueeMove);
+    drawMarquee();
+
+    if (!box.moved) {
+      /* A click on empty canvas clears the selection, unless it was an
+         additive one. */
+      if (!box.additive) S.deselect();
+      return;
+    }
+
+    const left = Math.min(box.x0, box.x1);
+    const right = Math.max(box.x0, box.x1);
+    const top = Math.min(box.y0, box.y1);
+    const bottom = Math.max(box.y0, box.y1);
+    const inside = function (obj) {
+      return obj.x + obj.w >= left && obj.x <= right && obj.y + obj.h >= top && obj.y <= bottom;
+    };
+
+    const hits = state.items.filter(inside).concat(state.notes.filter(inside));
+    const ids = hits.map(function (obj) { return obj.id; });
+    if (box.additive) {
+      const next = S.selectedIds();
+      for (const id of ids) if (next.indexOf(id) < 0) next.push(id);
+      S.setSelection(next);
+    } else {
+      S.setSelection(ids);
+    }
+    if (ids.length) {
+      MN.app.setStatus(ids.length + " item" + (ids.length === 1 ? "" : "s") + " selected.");
+    }
+  }
+
+  function drawMarquee() {
+    const layer = core.$("#marquee");
+    if (!layer) return;
+    if (!marquee) {
+      layer.textContent = "";
+      return;
+    }
+    const left = Math.min(marquee.x0, marquee.x1);
+    const top = Math.min(marquee.y0, marquee.y1);
+    const width = Math.abs(marquee.x1 - marquee.x0);
+    const height = Math.abs(marquee.y1 - marquee.y0);
+    const p = MN.stage.pxPerUnit();
+    layer.textContent = "";
+    const box = core.el("div", { class: "marquee-box" });
+    box.style.left = left * p + "px";
+    box.style.top = top * p + "px";
+    box.style.width = width * p + "px";
+    box.style.height = height * p + "px";
+    layer.appendChild(box);
   }
 
   /* ---------- wiring ---------- */
@@ -269,14 +405,32 @@
     board.addEventListener("pointerdown", function (e) {
       const el = e.target.closest ? e.target.closest(".magnet") : null;
       if (!el) {
-        S.deselect();
+        /* Empty canvas: start a marquee. It becomes a plain click, and the
+           selection is cleared, when the pointer does not move. Only the
+           primary button draws one. */
+        if (e.button !== 0) return;
+        startMarquee(e);
         return;
       }
       const obj = findObject(el.dataset.id);
       if (!obj) return;
-      if (e.target.classList.contains("handle")) startDrag(e, obj, "resize");
-      else if (e.target.classList.contains("rot")) startDrag(e, obj, "rotate");
-      else startDrag(e, obj, "move");
+
+      /* Shift or Command adds to the selection instead of replacing it. */
+      const additive = e.shiftKey || e.metaKey || e.ctrlKey;
+
+      if (e.target.classList.contains("handle")) {
+        if (S.selectedCount() < 2) startDrag(e, obj, "resize");
+        return;
+      }
+      if (e.target.classList.contains("rot")) {
+        if (S.selectedCount() < 2) startDrag(e, obj, "rotate");
+        return;
+      }
+      if (additive) {
+        S.toggleSelection(obj.id);
+        return;
+      }
+      startDrag(e, obj, "move");
     });
   }
 

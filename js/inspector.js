@@ -631,6 +631,60 @@
     return frag;
   }
 
+  /* ---------- group section ---------- */
+
+  function buildGroupSection(count) {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(section("Selected"));
+    frag.appendChild(core.el("p", { class: "selected-name", text: count + " objects selected" }));
+
+    /* The bounds of the whole selection. */
+    const objects = S.selectedObjects();
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const obj of objects) {
+      minX = Math.min(minX, obj.x);
+      minY = Math.min(minY, obj.y);
+      maxX = Math.max(maxX, obj.x + obj.w);
+      maxY = Math.max(maxY, obj.y + obj.h);
+    }
+    const unit = unitLabel();
+    frag.appendChild(core.el("p", { class: "summary" }, [
+      core.el("b", { text: core.fmtNum(maxX - minX, 2) + " × " + core.fmtNum(maxY - minY, 2) + " " + unit }),
+      document.createTextNode(" as a group · at " +
+        core.fmtNum(minX, 2) + ", " + core.fmtNum(minY, 2) + " " + unit),
+    ]));
+
+    frag.appendChild(buttonRow([
+      button("Bring front", function () {
+        for (const obj of objects) S.bringToFront(obj.id);
+        S.commit("bring to front");
+      }),
+      button("Send back", function () {
+        for (const obj of objects) S.sendToBack(obj.id);
+        S.commit("send to back");
+      }),
+    ]));
+    frag.appendChild(buttonRow([
+      button("Duplicate", function () {
+        for (const obj of objects.slice()) {
+          const result = S.duplicateObject(obj.id);
+          if (result) S.commit("duplicate");
+        }
+      }),
+      button("Delete", function () {
+        for (const obj of objects.slice()) {
+          if (S.findNote(obj.id)) S.removeNote(obj.id); else S.removeItem(obj.id);
+        }
+        S.commit("delete");
+      }),
+    ]));
+
+    frag.appendChild(core.el("p", { class: "hint small" }, [
+      document.createTextNode("A group moves as one thing. Shift-click adds to the selection, or drag a box on empty canvas."),
+    ]));
+    return frag;
+  }
+
   /* ---------- selection placeholder ---------- */
 
   function buildHint() {
@@ -653,7 +707,10 @@
 
     const item = S.selectedItem();
     const note = S.selectedNote();
-    if (item) {
+    const count = S.selectedCount();
+    if (count > 1) {
+      bodyEl.appendChild(buildGroupSection(count));
+    } else if (item) {
       bodyEl.appendChild(buildItemSection(item));
       if (item.kind === "text") bodyEl.appendChild(buildTextSection(item, false));
       if (item.kind === "shape") bodyEl.appendChild(buildShapeSection(item));

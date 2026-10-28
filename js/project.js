@@ -770,7 +770,7 @@
     state.items = (doc.items || []).map(normaliseItem).filter(Boolean);
     state.notes = (doc.notes || []).map(normaliseNote).filter(Boolean);
     state.projectName = typeof doc.name === "string" ? doc.name : "Napkinetic board";
-    state.selection = null;
+    state.selection = [];
     if (doc.view) applyViewState(doc.view);
 
     S.resetHistory();

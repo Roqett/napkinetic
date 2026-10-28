@@ -476,12 +476,27 @@ body.dropping::after {
   box-shadow: 0 30px 70px rgba(0, 0, 0, .45), 0 0 0 1px rgba(0, 0, 0, .25);
 }
 
-#bg, #grid, #items, #notes, #guides, #underlay { position: absolute; inset: 0; }
+#bg, #grid, #items, #notes, #guides, #underlay, #marquee { position: absolute; inset: 0; }
 
 /* The layers are containers, not surfaces. If they caught the pointer, the
    empty notes layer would sit over the items and swallow every click. */
-#bg, #grid, #guides, #items, #notes, #underlay { pointer-events: none; }
+#bg, #grid, #guides, #items, #notes, #underlay, #marquee { pointer-events: none; }
 .magnet { pointer-events: auto; }
+
+/* A marquee selection rectangle. */
+.marquee-box {
+  position: absolute;
+  border: 1px solid var(--accent);
+  background: rgba(111, 155, 255, .12);
+  border-radius: 2px;
+}
+
+/* A group is moved as one thing, so it is not resized by accident: the
+   handles are hidden while more than one thing is selected. */
+#items.multi .magnet .handle,
+#notes.multi .magnet .handle,
+#items.multi .magnet .rot,
+#notes.multi .magnet .rot { display: none !important; }
 
 #bg.checker {
   background-color: #f6f7f9;

@@ -26,7 +26,7 @@
     assets: [],      // { id, name, path, mime, width, height, blob }
     items: [],       // design content. Array order is the z-order, last on top.
     notes: [],       // commentary. Never merged into items.
-    selection: null, // { type: "item" | "note", id }
+    selection: [],   // ids. One, or several for a group move.
     projectName: "Napkinetic board",
     view: {
       zoom: 1, grid: true, snap: true, aspect: true, gridSize: 10,
@@ -78,7 +78,7 @@
       canvas: core.clone(state.canvas),
       items: core.clone(state.items),
       notes: core.clone(state.notes),
-      selection: state.selection ? core.clone(state.selection) : null,
+      selection: core.clone(state.selection) || [],
     };
   }
 
@@ -86,7 +86,7 @@
     state.canvas = core.clone(snap.canvas);
     state.items = core.clone(snap.items);
     state.notes = core.clone(snap.notes);
-    state.selection = snap.selection ? core.clone(snap.selection) : null;
+    state.selection = (snap.selection || []).slice();
   }
 
   /* A commit pushes the state as it stands *after* the change. Undo pops the
@@ -142,27 +142,86 @@
     history.future.length = 0;
   }
 
-  /* ---------- selection ---------- */
+  /* ---------- selection ----------
+     The selection is a list of ids. One is the usual case; several are a
+     group, and a group moves as a rigid unit. */
 
-  function select(type, id) {
-    const next = id ? { type: type, id: id } : null;
-    const same = (!next && !state.selection) ||
-      (next && state.selection && next.type === state.selection.type && next.id === state.selection.id);
-    if (same) return;
-    state.selection = next;
-    emit("selection", next);
+  function sameSelection(a, b) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i += 1) if (a[i] !== b[i]) return false;
+    return true;
   }
 
-  function deselect() { select(null, null); }
+  function setSelection(ids) {
+    const next = (ids || []).filter(function (id, index) {
+      return id && ids.indexOf(id) === index;
+    });
+    if (sameSelection(next, state.selection)) return;
+    state.selection = next;
+    emit("selection", next.slice());
+  }
 
+  /* Select one thing and nothing else. */
+  function select(type, id) {
+    setSelection(id ? [id] : []);
+  }
+
+  function deselect() { setSelection([]); }
+
+  function isSelected(id) {
+    return state.selection.indexOf(id) >= 0;
+  }
+
+  function toggleSelection(id) {
+    const next = state.selection.slice();
+    const at = next.indexOf(id);
+    if (at >= 0) next.splice(at, 1);
+    else next.push(id);
+    setSelection(next);
+  }
+
+  function addToSelection(id) {
+    if (isSelected(id)) return;
+    setSelection(state.selection.concat([id]));
+  }
+
+  function selectedIds() {
+    return state.selection.slice();
+  }
+
+  function selectedCount() {
+    return state.selection.length;
+  }
+
+  /* The items in the selection, in board order. */
+  function selectedItems() {
+    return state.items.filter(function (it) { return isSelected(it.id); });
+  }
+
+  function selectedNotes() {
+    return state.notes.filter(function (n) { return isSelected(n.id); });
+  }
+
+  /* The first selected item, for the inspector. */
   function selectedItem() {
-    if (!state.selection || state.selection.type !== "item") return null;
-    return state.items.find(function (it) { return it.id === state.selection.id; }) || null;
+    for (const id of state.selection) {
+      const it = findItem(id);
+      if (it) return it;
+    }
+    return null;
   }
 
   function selectedNote() {
-    if (!state.selection || state.selection.type !== "note") return null;
-    return state.notes.find(function (n) { return n.id === state.selection.id; }) || null;
+    for (const id of state.selection) {
+      const note = findNote(id);
+      if (note) return note;
+    }
+    return null;
+  }
+
+  /* Everything selected, items and notes together. */
+  function selectedObjects() {
+    return selectedItems().concat(selectedNotes());
   }
 
   /* ---------- item and note helpers ---------- */
@@ -281,7 +340,9 @@
     const i = state.items.findIndex(function (it) { return it.id === id; });
     if (i < 0) return false;
     state.items.splice(i, 1);
-    if (state.selection && state.selection.type === "item" && state.selection.id === id) deselect();
+    if (isSelected(id)) {
+      setSelection(state.selection.filter(function (sel) { return sel !== id; }));
+    }
     return true;
   }
 
@@ -289,7 +350,9 @@
     const i = state.notes.findIndex(function (n) { return n.id === id; });
     if (i < 0) return false;
     state.notes.splice(i, 1);
-    if (state.selection && state.selection.type === "note" && state.selection.id === id) deselect();
+    if (isSelected(id)) {
+      setSelection(state.selection.filter(function (sel) { return sel !== id; }));
+    }
     return true;
   }
 
@@ -360,7 +423,11 @@
     on: on, off: off, emit: emit,
     commit: commit, undo: undo, redo: redo, canUndo: canUndo, canRedo: canRedo,
     resetHistory: resetHistory, snapshot: snapshot, restore: restore,
-    select: select, deselect: deselect, selectedItem: selectedItem, selectedNote: selectedNote,
+    select: select, deselect: deselect, setSelection: setSelection,
+    isSelected: isSelected, toggleSelection: toggleSelection, addToSelection: addToSelection,
+    selectedIds: selectedIds, selectedCount: selectedCount,
+    selectedItem: selectedItem, selectedNote: selectedNote,
+    selectedItems: selectedItems, selectedNotes: selectedNotes, selectedObjects: selectedObjects,
     findItem: findItem, findNote: findNote, findAsset: findAsset,
     newTextItem: newTextItem, newNote: newNote, newImageItem: newImageItem,
     newShapeItem: newShapeItem, shapeSpec: shapeSpec, shapeFontSize: shapeFontSize,

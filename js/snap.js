@@ -24,8 +24,9 @@
   }
 
   function others(excludeId) {
+    const excluded = Array.isArray(excludeId) ? excludeId : [excludeId];
     return state.items.concat(state.notes).filter(function (o) {
-      return o.id !== excludeId;
+      return excluded.indexOf(o.id) < 0;
     });
   }
 
@@ -163,9 +164,11 @@
     return unit === "px" ? String(value) : value + " " + unit;
   }
 
-  function snapMove(obj, x, y) {
+  function snapMove(obj, x, y, excludeIds) {
     const result = { x: x, y: y, guides: [] };
     if (!enabled()) return result;
+    /* A group must not snap to itself. */
+    const excluded = Array.isArray(excludeIds) ? excludeIds : [obj.id];
 
     const refsX = [
       { ref: x, offset: 0 },
@@ -184,13 +187,13 @@
        Priority per axis: alignment, then equal spacing, then the grid. If
        alignment found something, spacing is not considered on that axis —
        otherwise the two systems fight each other. */
-    const sx = nearest(refsX, xCandidates(obj.id));
+    const sx = nearest(refsX, xCandidates(excluded));
     if (sx) {
       result.x = x + sx.delta;
       if (sx.guide) result.guides.push({ kind: "line", axis: "x", value: sx.value });
     } else {
       /* Alignment had nothing to say, so try to make the gaps equal. */
-      const spacing = spacingSnap(obj, x, y, obj.id);
+      const spacing = spacingSnap(obj, x, y, excluded);
       if (spacing.x) {
         result.x = x + spacing.x.dx;
         result.guides.push({
@@ -204,12 +207,12 @@
     }
 
     /* Y is settled after X, so the column detection uses the final x. */
-    const sy = nearest(refsY, yCandidates(obj.id));
+    const sy = nearest(refsY, yCandidates(excluded));
     if (sy) {
       result.y = y + sy.delta;
       if (sy.guide) result.guides.push({ kind: "line", axis: "y", value: sy.value });
     } else {
-      const spacing = spacingSnap(obj, result.x, y, obj.id);
+      const spacing = spacingSnap(obj, result.x, y, excluded);
       if (spacing.y) {
         result.y = y + spacing.y.dy;
         result.guides.push({
@@ -234,7 +237,7 @@
     const refsX = [{ ref: right }];
     const refsY = [{ ref: bottom }];
 
-    const sx = nearest(refsX, xCandidates(obj.id));
+    const sx = nearest(refsX, xCandidates([obj.id]));
     if (sx) {
       result.w = right + sx.delta - obj.x;
       if (sx.guide) result.guides.push({ kind: "line", axis: "x", value: sx.value });
@@ -242,7 +245,7 @@
       const grid = gridSnap(right, state.view.gridSize);
       if (grid !== null) result.w = grid - obj.x;
     }
-    const sy = nearest(refsY, yCandidates(obj.id));
+    const sy = nearest(refsY, yCandidates([obj.id]));
     if (sy) {
       result.h = bottom + sy.delta - obj.y;
       if (sy.guide) result.guides.push({ kind: "line", axis: "y", value: sy.value });

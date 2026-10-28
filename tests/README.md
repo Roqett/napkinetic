@@ -62,3 +62,23 @@ browser does not exit before the results are posted.
 | no console errors | the gate for every phase |
 
 Last run: all pass in Chrome 152 and Firefox 156, macOS.
+
+## The group test
+
+<http://127.0.0.1:8124/tests/group.html> checks selecting several objects and
+moving them as one thing: <kbd>Shift</kbd>-click to add, <kbd>⌘</kbd>-click to
+remove, a drag moves the group rigidly, the marquee selects what it touches, a
+click on empty canvas clears the selection, one undo puts the group back, the
+arrow keys nudge every unlocked member, and a locked object stays put.
+
+It uses the same `result.txt` endpoint as the smoke test, so run one at a time.
+
+## The other suites
+
+| Page | What it covers |
+|---|---|
+| `persistence.html` | two tabs, the versioned history and the empty-board guard |
+| `spacing.html` | equal-spacing guides, thirteen acceptance cases |
+| `frames.html` | the visual frames and the panel chrome |
+| `blocks.html` | the block shapes and the symbol library |
+| `boot-probe.html` | a bare boot check for a browser that misbehaves |

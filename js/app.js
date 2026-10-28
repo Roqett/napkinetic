@@ -184,7 +184,7 @@
       }
       state.items.length = 0;
       state.notes.length = 0;
-      state.selection = null;
+      state.selection = [];
       S.commit("new board");
       /* The user asked for an empty board, so the empty board is allowed to
          replace the stored one. The old board is in the history. */

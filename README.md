@@ -53,7 +53,7 @@ The chrome is dark, quiet and glassy — translucent panels over a soft wallpape
 1. **Import** a folder of images. They land in the tray on the left, grouped by folder, searchable.
 2. **Set the canvas**: width, height, unit and scale, top left or in the canvas panel. The scale is how many pixels one unit is worth — a 214 pt panel at 2× is a 428 px grid.
 3. **Place** an asset by dragging it from the tray onto the canvas, or by clicking it to drop it in the middle. It arrives at its own size — set **Asset ratio** to `2` if your files are `@2x` artwork.
-4. **Arrange**: drag to move, corner handle to resize, the circle above the item to rotate (hold <kbd>Shift</kbd> for 15° steps). The inspector shows the value in canvas units *and* in board pixels, the way the Redline board always did.
+4. **Arrange**: drag to move, corner handle to resize, the circle above the item to rotate (hold <kbd>Shift</kbd> for 15° steps). Shift-click several objects, or drag a box on empty canvas, and they move as one group; a locked object stays where it is. The inspector shows the value in canvas units *and* in board pixels, the way the Redline board always did.
 5. **Type** the exact numbers into the inspector when the pixels are not enough.
 6. **Set the background** if the board is not a light grey: a solid colour, a checker, or one of your own images. A faint **underlay** of any image from the tray can sit under the artwork as a tracing aid — like the grid, it never reaches the exported PNG.
 7. **Add notes** where a decision needs explaining.

@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Napkinetic — group move test</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, Menlo, monospace; margin: 0; padding: 12px; background: #fff; color: #111; }
+  #out { white-space: pre-wrap; }
+  .pass { color: #0a6b28; }
+  .fail { color: #b00020; font-weight: 700; }
+  #frame { position: absolute; left: -99999px; width: 1200px; height: 800px; border: 0; }
+</style>
+</head>
+<body>
+<pre id="out">running…</pre>
+<img src="/__hold?seconds=25" alt="" style="position:absolute;left:-99999px">
+<iframe id="frame" src="/index.html"></iframe>
+<script>
+/* Selecting a group and moving it as one thing. */
+const lines = [];
+let failures = 0;
+
+function log(name, ok, detail) {
+  if (!ok) failures += 1;
+  lines.push((ok ? "PASS " : "FAIL ") + name + (detail ? "  [" + detail + "]" : ""));
+  document.getElementById("out").innerHTML = lines.map(function (l) {
+    const cls = l.startsWith("FAIL") ? "fail" : "pass";
+    return '<span class="' + cls + '">' + l.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</span>";
+  }).join("\n");
+}
+
+const frame = document.getElementById("frame");
+
+frame.addEventListener("load", function () {
+  const w = frame.contentWindow;
+  const doc = frame.contentDocument;
+  const MN = w.MN;
+  const S = MN.state;
+  const state = S.state;
+
+  function rect(id, x, y, width, height) {
+    return { id: id, kind: "image", assetId: null, x: x, y: y, w: width, h: height,
+      rotation: 0, opacity: 1, locked: false };
+  }
+
+  function setup() {
+    state.items = [rect("A", 40, 60, 60, 40), rect("B", 160, 60, 60, 40), rect("C", 400, 400, 60, 40)];
+    state.notes = [];
+    state.canvas.width = 600;
+    state.canvas.height = 400;
+    state.canvas.unit = "px";
+    state.canvas.scale = 1;
+    state.view.snap = false;
+    state.view.zoom = 1;
+    S.setSelection([]);
+    S.commit("setup");
+  }
+
+  /* A click on an item selects it. */
+  setup();
+  const elA = MN.items.elementFor("A");
+  const rA = elA.getBoundingClientRect();
+  elA.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: rA.left + 10, clientY: rA.top + 10, bubbles: true, cancelable: true, pointerId: 1, button: 0, buttons: 1 }));
+  log("a click selects one", S.selectedCount() === 1 && S.isSelected("A"), S.selectedIds().join(","));
+
+  /* Shift-click adds to the selection. */
+  const elB = MN.items.elementFor("B");
+  const rB = elB.getBoundingClientRect();
+  elB.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: rB.left + 10, clientY: rB.top + 10, bubbles: true, cancelable: true, pointerId: 2, button: 0, buttons: 1, shiftKey: true }));
+  log("shift-click adds to the selection", S.selectedCount() === 2 && S.isSelected("A") && S.isSelected("B"),
+    S.selectedIds().join(","));
+
+  /* Command-click takes it away again. */
+  elB.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: rB.left + 10, clientY: rB.top + 10, bubbles: true, cancelable: true, pointerId: 3, button: 0, buttons: 1, metaKey: true }));
+  log("command-click takes it away again", S.selectedCount() === 1 && S.isSelected("A"), S.selectedIds().join(","));
+
+  /* Now a group of two, and a drag moves both by the same amount. */
+  setup();
+  S.setSelection(["A", "B"]);
+  const before = { ax: state.items[0].x, ay: state.items[0].y, bx: state.items[1].x, by: state.items[1].y };
+  const elA2 = MN.items.elementFor("A");
+  const rA2 = elA2.getBoundingClientRect();
+  elA2.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: rA2.left + 10, clientY: rA2.top + 10, bubbles: true, cancelable: true, pointerId: 4, button: 0, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointermove", { clientX: rA2.left + 60, clientY: rA2.top + 35, bubbles: true, pointerId: 4, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointerup", { clientX: rA2.left + 60, clientY: rA2.top + 35, bubbles: true, pointerId: 4, buttons: 1 }));
+  const movedA = { x: state.items[0].x - before.ax, y: state.items[0].y - before.ay };
+  const movedB = { x: state.items[1].x - before.bx, y: state.items[1].y - before.by };
+  log("a group moves together", movedA.x === movedB.x && movedA.y === movedB.y && movedA.x !== 0,
+    "A " + movedA.x + "," + movedA.y + "  B " + movedB.x + "," + movedB.y);
+  log("the group keeps its arrangement",
+    (state.items[1].x - state.items[0].x) === (before.bx - before.ax),
+    "gap " + (state.items[1].x - state.items[0].x));
+
+  /* The unselected one stays put. */
+  log("what is not selected stays put", state.items[2].x === 400 && state.items[2].y === 400,
+    state.items[2].x + "," + state.items[2].y);
+
+  /* One undo takes the whole group back. */
+  S.undo();
+  log("one undo puts the group back",
+    state.items[0].x === before.ax && state.items[1].x === before.bx,
+    state.items[0].x + "," + state.items[1].x);
+
+  /* A marquee on empty canvas selects what is inside it. */
+  setup();
+  const board = doc.querySelector("#board");
+  const boardRect = board.getBoundingClientRect();
+  board.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: boardRect.left + 20, clientY: boardRect.top + 20, bubbles: true, cancelable: true, pointerId: 5, button: 0, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointermove", { clientX: boardRect.left + 260, clientY: boardRect.top + 140, bubbles: true, pointerId: 5, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointerup", { clientX: boardRect.left + 260, clientY: boardRect.top + 140, bubbles: true, pointerId: 5, buttons: 1 }));
+  log("a marquee selects what is inside it", S.selectedCount() === 2 && S.isSelected("A") && S.isSelected("B"),
+    S.selectedIds().join(","));
+
+  /* A click on empty canvas clears the selection. */
+  board.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: boardRect.left + 500, clientY: boardRect.top + 300, bubbles: true, cancelable: true, pointerId: 6, button: 0, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointerup", { clientX: boardRect.left + 500, clientY: boardRect.top + 300, bubbles: true, pointerId: 6, buttons: 1 }));
+  log("a click on empty canvas clears the selection", S.selectedCount() === 0, S.selectedIds().join(","));
+
+  /* The arrow keys nudge the whole group. */
+  setup();
+  S.setSelection(["A", "B"]);
+  const nudgeBefore = state.items.map(function (i) { return i.x; });
+  doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  log("the arrow keys nudge the group",
+    state.items[0].x === nudgeBefore[0] + 1 && state.items[1].x === nudgeBefore[1] + 1,
+    state.items[0].x + "," + state.items[1].x);
+
+  /* A locked object is still selected and inspected, but the group leaves it
+     where it is — by the arrow keys and by a drag. */
+  setup();
+  state.items[1].locked = true;
+  S.setSelection(["A", "B"]);
+  const lockedX = state.items[1].x;
+  doc.dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+  log("a locked object does not nudge", state.items[0].x === 41 && state.items[1].x === lockedX,
+    state.items[0].x + "," + state.items[1].x);
+
+  setup();
+  state.items[1].locked = true;
+  S.setSelection(["A", "B"]);
+  const lockedBefore = { x: state.items[1].x, y: state.items[1].y };
+  const elA3 = MN.items.elementFor("A");
+  const rA3 = elA3.getBoundingClientRect();
+  elA3.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: rA3.left + 10, clientY: rA3.top + 10, bubbles: true, cancelable: true, pointerId: 8, button: 0, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointermove", { clientX: rA3.left + 50, clientY: rA3.top + 25, bubbles: true, pointerId: 8, buttons: 1 }));
+  w.dispatchEvent(new w.PointerEvent("pointerup", { clientX: rA3.left + 50, clientY: rA3.top + 25, bubbles: true, pointerId: 8, buttons: 1 }));
+  log("a locked object does not drag",
+    state.items[0].x !== 40 && state.items[1].x === lockedBefore.x && state.items[1].y === lockedBefore.y,
+    state.items[0].x + " | " + state.items[1].x + "," + state.items[1].y);
+
+  /* Command-clicking an item out of a group must not be undone by the focus
+     the browser gives the clicked element. */
+  setup();
+  S.setSelection(["A", "B"]);
+  const elB3 = MN.items.elementFor("B");
+  const rB3 = elB3.getBoundingClientRect();
+  elB3.dispatchEvent(new w.PointerEvent("pointerdown", { clientX: rB3.left + 10, clientY: rB3.top + 10, bubbles: true, cancelable: true, pointerId: 9, button: 0, buttons: 1, metaKey: true }));
+  elB3.focus();
+  log("focus does not put a command-clicked item back",
+    S.selectedCount() === 1 && S.isSelected("A"), S.selectedIds().join(","));
+
+  lines.push("");
+  lines.push(failures === 0 ? "ALL PASS" : failures + " FAILURE(S)");
+  document.getElementById("out").innerHTML += "\n" + lines[lines.length - 1];
+  document.title = failures === 0 ? "TEST PASS" : "TEST FAIL " + failures;
+  try {
+    fetch("/__result", { method: "POST", body: lines.join("\n") });
+  } catch (err) { /* the report is in the page as well */ }
+});
+</script>
+</body>
+</html>
