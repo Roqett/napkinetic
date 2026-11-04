@@ -8,7 +8,7 @@ Nothing much to learn. No accounts. No cloud. No install. No build step. No netw
 
 [![The RED-LINE GT40 panel being laid out in the board](docs/demo/napkinetic-hero-poster.jpg)](docs/demo/napkinetic-hero.mp4)
 
-**Watch:** the RED-LINE GT40 cockpit at 214 × 719 pt, rebuilt from its own assets
+**Watch:** the RED-LINE GT40 cockpit , rebuilt from its own assets
 — the job this tool exists for. Sound on.
 
 *Early build, shown on purpose: the panel board in this clip is the app's
@@ -147,12 +147,8 @@ The automated suite runs in Chrome and Firefox; Safari has a different code path
 
 MIT. See [LICENSE](LICENSE).
 
-Napkinetic was built for the RED-LINE GT40 cockpit at 214 × 719 pt — a private
+Napkinetic was built for the RED-LINE , — a private
 project by the same owner. The clip and the still in this README are captures of
-that board, used with permission; no Redline source asset, font or brand file is
-in this repository.
+that board, used with permission.
 
-A [clip of the prototype this replaced](docs/demo/redline-prototype-demo.mp4)
-sits alongside it — the earlier Redline PanelBoard, doing the same job with
-hardcoded artwork. It is a record of where this came from, not a demo of this
-app. The `.mov` originals are in `docs/demo/` too.
+
